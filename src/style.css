@@ -1,0 +1,124 @@
+:root {
+  --char-border-color: rgba(158, 158, 158, 0.25);
+  --char-size: 24px;
+}
+
+.project-description {
+  margin: 16px auto 32px;
+}
+
+.editor-container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: stretch;
+  align-content: stretch;
+  gap: 8px;
+  width: fit-content;
+  margin: 16px auto;
+
+  .tools {
+    flex-basis: 300px;
+    width: 300px;
+  }
+
+  .editor {
+    flex-grow: 1;
+  }
+
+  .editor-wrap {
+    background-color: var(--char-border-color);
+    padding: 1px;
+    width: fit-content;
+    height: fit-content;
+    -webkit-user-select: none; /* Safari */
+    -ms-user-select: none; /* IE 10 and Edge */
+    user-select: none;
+    .row:first-child {
+      margin-top: 1px;
+    }
+    .row:last-child {
+      margin-bottom: -6px;
+    }
+    cursor: default;
+    &.text {
+      cursor: text;
+    }
+  }
+  .row {
+    margin: 0;
+    padding: 0;
+    margin-top: -6px;
+    text-wrap: nowrap;
+  }
+  .character {
+    width: var(--char-size);
+    height: var(--char-size);
+    line-height: var(--char-size);
+    overflow: hidden;
+    font-size: 18px;
+    text-align: center;
+    font-family: "Courier New", Courier, monospace;
+    /* border: 1px solid var(--char-border-color); */
+    border-left: 0;
+    border-bottom: 0;
+    margin: 0 1px 0 1px;
+    padding: 0;
+    display: inline-block;
+    background-color: var(--pico-card-background-color);
+  }
+
+  .character.active {
+    background-color: var(--char-border-color);
+  }
+}
+
+fieldset {
+  label {
+    width: 33%;
+    line-height: 48px;
+  }
+  input {
+    width: 67%;
+  }
+}
+
+.tool-selector {
+  .name {
+    display: inline-block;
+  }
+  .settings {
+    font-size: 60%;
+    line-height: 60%;
+  }
+  fieldset {
+    margin-bottom: 0;
+    label {
+      width: 67%;
+    }
+  }
+
+  .tool {
+    padding: 8px;
+    cursor: pointer;
+    background-color: rgba(255, 255, 255, 0.05);
+
+    &.active {
+      background-color: rgba(0, 0, 0, 0.15);
+    }
+  }
+
+  input {
+    float: right;
+    padding: 8px;
+    margin: 0;
+    font-size: 18px;
+    line-height: 18px;
+    color: #fff;
+    width: auto;
+    height: 32px;
+    width: 32px;
+    text-align: center;
+  }
+}

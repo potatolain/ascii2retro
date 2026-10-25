@@ -1,0 +1,40 @@
+{
+  "name": "ascii2retro",
+  "version": "1.0.0",
+  "description": "Create and convert ascii art to be used with retro consoles, or other things needing binary output",
+  "repository": {
+    "type": "git",
+    "url": "https://gh.nes.science/ascii2retro"
+  },
+  "license": "MIT",
+  "author": "Sarah Parker",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "WATCHPACK_POLLING=true react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-scripts": "^5.0.1"
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-react-app": "^7.0.1"
+  }
+}
