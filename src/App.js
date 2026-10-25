@@ -226,6 +226,12 @@ export default function Main() {
     }
   }
 
+  function onClickSave() {}
+
+  function onClickLoad() {}
+
+  function onClickExport() {}
+
   return (
     <>
       <div className="container">
@@ -259,6 +265,17 @@ export default function Main() {
             value={height}
           />
         </fieldset>
+        <div className="button-bar">
+          <button className="secondary" onClick={onClickLoad}>
+            Load
+          </button>
+          <button className="secondary" onClick={onClickSave}>
+            Save
+          </button>
+          <button className="secondary" onClick={onClickExport}>
+            Export
+          </button>
+        </div>
       </div>
       <div className="container-fluid editor-container">
         <article className="tools card">
