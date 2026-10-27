@@ -1,6 +1,6 @@
-import { saveToText, loadFromText } from "./fileUtils";
+import { saveToText, loadFromText, exportAs } from "./fileUtils";
 import { describe, it, expect } from "@jest/globals";
-import { structuredClone } from "./test-utils";
+import { parseCommonJSFromString, structuredClone } from "./test-utils";
 
 const face = `xxxxxxxx
 xxxxxxxx
@@ -8,6 +8,7 @@ xoxxxxox
 xxxxxxxx
 xoxxxxox
 xoooooox
+xxxxxxxx
 xxxxxxxx
 xxxxxxxx`
   // Finagle into the format the app uses, array of arrays
@@ -17,16 +18,16 @@ xxxxxxxx`
 const faceObj = {
   name: "Smiley Face",
   width: 8,
-  height: 8,
-  outputSize: "byte",
+  height: 9,
+  outputSize: 8,
   data: face,
-  translations: { " ": 0, x: 1, o: 2 },
+  translations: { " ": "0", x: "1", o: "0x2" },
 };
 
 const faceData = `Name: Smiley Face
 Width: 8
-Height: 8
-Output Size: byte
+Height: 9
+Output Size: 8
 
 xxxxxxxx
 xxxxxxxx
@@ -34,17 +35,18 @@ xoxxxxox
 xxxxxxxx
 xoxxxxox
 xoooooox
+xxxxxxxx
 xxxxxxxx
 xxxxxxxx
 
  : 0
 x: 1
-o: 2`;
+o: 0x2`;
 
 const faceDataNoTranslationTable = `Name: Smiley Face
 Width: 8
-Height: 8
-Output Size: byte
+Height: 9
+Output Size: 8
 
 xxxxxxxx
 xxxxxxxx
@@ -54,8 +56,14 @@ xoxxxxox
 xoooooox
 xxxxxxxx
 xxxxxxxx
+xxxxxxxx
 
 `;
+
+const translatedSmilieRawBin = [
+  1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2,
+  1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+];
 describe("saveToText", () => {
   it("does a basic export correctly", () => {
     expect(saveToText(faceObj)).toEqual(faceData);
@@ -86,5 +94,121 @@ describe("saveToText", () => {
     const obj = structuredClone(faceObj);
     delete obj.translations;
     expect(saveToText(obj)).toEqual(faceDataNoTranslationTable);
+  });
+});
+
+describe("loadFromText", () => {
+  describe("Does a basic import correctly", () => {
+    it("Loads text config correctly", () => {
+      const obj = loadFromText(faceData);
+
+      expect(obj.name).toEqual("Smiley Face");
+    });
+    it("Loads numeric config correctly", () => {
+      const obj = loadFromText(faceData);
+      expect(obj.width).toEqual(8);
+      expect(obj.height).toEqual(9);
+      expect(obj.outputSize).toEqual(8);
+    });
+    it("Loads translation table correctly", () => {
+      const obj = loadFromText(faceData);
+      expect(obj.translations).toEqual({ " ": "0", x: "1", o: "0x2" });
+    });
+    it("Handles a lack of translation table correctly", () => {
+      const obj = loadFromText(faceDataNoTranslationTable);
+      expect(obj.translations).toEqual({});
+    });
+    it("Fails on invalid values", () => {
+      expect(() => loadFromText(faceData.replace("Width: 8", "Width: dace"))).toThrow(/Failed parsing.*Width/i);
+      expect(() => loadFromText(faceData.replace("Height: 9", "Height: tall"))).toThrow(/Failed parsing.*Height/i);
+      expect(() => loadFromText(faceData.replace("Output Size: 8", "Output Size: orangutan"))).toThrow(
+        /Failed parsing.*Output Size/i,
+      );
+    });
+    it("Fails on missing required keys", () => {
+      expect(() => loadFromText(faceData.replace("Width: 8", "Unused: 8"))).toThrow(/Width.*not provided/i);
+      expect(() => loadFromText(faceData.replace("Height: 9", "Unused: 9"))).toThrow(/Height.*not provided/i);
+      expect(() => loadFromText(faceData.replace("Output Size: 8", "Unused: 8"))).toThrow(/Output Size not provided/i);
+    });
+    it("Fails with a useful message on invalid keys", () => {
+      expect(() => loadFromText(faceData.replace("Width: 8", "Width 8"))).toThrow(/Parameters section is corrupted!/i);
+      expect(() => loadFromText(faceData.replace("Height: 9", "Unused 9"))).toThrow(
+        /Parameters section is corrupted!/i,
+      );
+      expect(() => loadFromText(faceData.replace("x: 1", "x 1"))).toThrow(/Translations section is corrupted!/i);
+    });
+  });
+});
+
+describe("exportAs", () => {
+  it("handles invalid type", () => {
+    expect(() => exportAs("blagoonga", faceObj)).toThrow(/Unknown export type/i);
+  });
+  it("Raw binary export", () => {
+    expect(exportAs("bin", faceObj)).toEqual(new Uint8Array(translatedSmilieRawBin));
+    const obj = structuredClone(faceObj);
+    obj.outputSize = 16;
+    expect(exportAs("bin", obj)).toEqual(new Uint16Array(translatedSmilieRawBin));
+    obj.outputSize = 32;
+    expect(exportAs("bin", obj)).toEqual(new Uint32Array(translatedSmilieRawBin));
+    obj.outputSize = 64;
+    expect(exportAs("bin", obj)).toEqual(new BigUint64Array(translatedSmilieRawBin.map((a) => BigInt(a))));
+  });
+
+  it("js export", () => {
+    expect(parseCommonJSFromString(exportAs("js", faceObj))).toEqual({
+      width: 8,
+      height: 9,
+      name: "Smiley Face",
+      outputSize: 8,
+      data: translatedSmilieRawBin,
+    });
+
+    // 64 bit is a bit special due to js limitations...
+    const obj = structuredClone(faceObj);
+    obj.outputSize = 64;
+    const bigIntResult = parseCommonJSFromString(exportAs("js", obj));
+    const expectedResult = {
+      width: 8,
+      height: 9,
+      name: "Smiley Face",
+      outputSize: 64,
+      data: new BigUint64Array(translatedSmilieRawBin.map((a) => BigInt(a))),
+    };
+    // and jest limitations
+    bigIntResult.data = bigIntResult.data.toString();
+    expectedResult.data = expectedResult.data.toString();
+    expect(bigIntResult).toEqual(expectedResult);
+  });
+  it("json export", () => {
+    expect(JSON.parse(exportAs("json", faceObj))).toEqual({
+      width: 8,
+      height: 9,
+      name: "Smiley Face",
+      outputSize: 8,
+      data: translatedSmilieRawBin,
+    });
+    const obj = structuredClone(faceObj);
+    // 64 bit is a bit special due to js limitations...
+    obj.outputSize = 64;
+    expect(() => exportAs("json", obj)).toThrow(/64 bit json exports are not supported/i);
+  });
+
+  it("c export", () => {
+    const expectedC = `#define ART_WIDTH 8
+#define ART_HEIGHT 9
+#define OUTPUT_SIZE 8
+const unsigned char artData[] = {
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 2, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 2, 2, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 1;
+};`;
+    expect(exportAs("c", faceObj)).toEqual(expectedC);
+  });
+
+  it("csv export", () => {
+    expect(exportAs("csv", faceObj)).toEqual(translatedSmilieRawBin.join(","));
   });
 });
