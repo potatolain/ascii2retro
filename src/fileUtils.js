@@ -11,7 +11,7 @@
  * // FIXME document params
  * @returns Raw text which can be saved to a txt file representing this art.  Can be imported later.
  */
-export function saveToText({ name, width, height, outputSize, data, translations }) {
+export function saveToText({ name, width, height, outputSize, data, translations, asciiOffset }) {
   if (!width || !height || !outputSize) {
     throw new Error("Missing required parameters! Need width, height and outputSize.");
   }
@@ -28,6 +28,7 @@ export function saveToText({ name, width, height, outputSize, data, translations
 Width: ${width}
 Height: ${height}
 Output Size: ${outputSize}
+ASCII Offset: ${asciiOffset}
 
 ${strData}
 
@@ -44,8 +45,9 @@ export function loadFromText(txt) {
     name,
     width,
     height,
-    outputSize,
-    data = "",
+    outputSize, // Default in case things happen in a weird order
+    asciiOffset,
+    data = [],
     translations = {};
 
   for (currLine = 0; currLine < lines.length; currLine++) {
@@ -76,6 +78,13 @@ export function loadFromText(txt) {
           throw new Error(`Failed parsing key "Height"! It must be a number, received: "${value}"`);
         }
         break;
+      case "ascii offset":
+        asciiOffset = parseTextToBinary(value, outputSize ?? 8);
+        if (asciiOffset === null) {
+          throw new Error(`Failed parsing key "ASCII Offset"! It must be a number, received: "${value}"`);
+        }
+        asciiOffset = value;
+        break;
       case "output size":
         outputSize = parseInt(value, 10);
         if (isNaN(outputSize)) {
@@ -91,12 +100,16 @@ export function loadFromText(txt) {
   if (!outputSize) {
     throw new Error("Output Size not provided! Cannot import.");
   }
+  if (!asciiOffset) {
+    throw new Error("ASCII Offset not provided! Cannot import.");
+  }
   for (; currLine < lines.length; currLine++) {
     if (lines[currLine].length === 0) {
       currLine++;
       break;
     }
-    data += lines[currLine] + "\n";
+    data.push([]);
+    lines[currLine].split("").map((char) => data[data.length - 1].push(char));
   }
 
   // Translations...
@@ -105,37 +118,57 @@ export function loadFromText(txt) {
     if (lines[currLine].length === 0) {
       continue;
     }
-    const splut = lines[currLine].split(":");
-    let [key, value] = splut;
-    if (splut.length != 2) {
-      throw new Error("Translations section is corrupted! Cannot import.");
+    // A colon is a valid character, so we can't just split on that.
+    if (lines[currLine][1] !== ":" || lines[currLine].length < 3) {
+      throw new Error(`Translations section is corrupted! Cannot import. Problem line: ${lines[currLine]}`);
     }
-    value = value.substr(1);
+    let key = lines[currLine][0],
+      value = lines[currLine].substring(3);
     translations[key] = value;
   }
 
-  return { name, width, height, outputSize, data, translations };
+  return { name, width, height, outputSize, data, translations, asciiOffset };
+}
+
+// FIXME: Handle -$20, tests
+export function parseTextToBinary(origValue, outputSize) {
+  let value = origValue,
+    isNegative = false,
+    finalValue = null;
+  if (value.startsWith("-")) {
+    isNegative = true;
+    value = value.substring(1);
+  } else if (value.length === 0) {
+    value = "0";
+  }
+  if (outputSize === 64) {
+    return BigInt(origValue);
+  } else if (value.startsWith("0x")) {
+    finalValue = parseInt(value.substring(2), 16);
+  } else if (value.startsWith("$")) {
+    finalValue = parseInt(value.substring(1), 16);
+  } else if (value.startsWith("0b")) {
+    finalValue = parseInt(value.substring(2), 2);
+  } else if (value.startsWith("%")) {
+    finalValue = parseInt(value.substring(1), 2);
+  } else if (!isNaN(value) && !isNaN(parseInt(value))) {
+    finalValue = parseInt(value);
+  } else {
+    return null;
+  }
+  return isNegative ? 0 - finalValue : finalValue;
 }
 
 // Take translations and turn the values into values we can put into the output file.
-function parseTranslations(translations, outputSize) {
+function parseTranslations(translations, outputSize, asciiOffset) {
+  const parsedAsciiOffset = parseTextToBinary(asciiOffset, outputSize);
   return Object.fromEntries(
-    Object.entries(translations).map(([key, value]) => {
-      if (outputSize === 64) {
-        value = BigInt(value);
-      } else if (value.startsWith("0x")) {
-        value = parseInt(value.substr(2), 16);
-      } else if (value.startsWith("$")) {
-        value = parseInt(value.substr(1), 16);
-      } else if (value.startsWith("0b")) {
-        value = parseInt(value.substr(2), 2);
-      } else if (value.startsWith("%")) {
-        value = parseInt(value.substr(1), 16);
-      } else if (Number.isInteger(outputSize)) {
-        value = parseInt(value);
-      }
-      return [key, value];
-    }),
+    Object.entries(translations)
+      .filter(([k, v]) => v !== null)
+      .map(([key, value]) => {
+        value = parseTextToBinary(value, outputSize) ?? value + parsedAsciiOffset;
+        return [key, value];
+      }),
   );
 }
 
@@ -147,14 +180,20 @@ function chunkArray(array, size) {
   return result;
 }
 
-export const knownExportTypes = ["bin", "js", "json", "c", "csv"];
+export const knownExportTypes = ["bin", "js", "json", "c", "csv", "ascii"];
+export const exportNames = ["Binary/Raw", "Javascript module", "JSON", "C Code", "CSV", "Plain Text"];
 // Turns the given data into the given format. Does not create a file, just serves up the content.
-export function exportAs(exportType, { name, width, height, outputSize, data, translations }) {
-  const parsedTranslations = parseTranslations(translations, outputSize),
+export function exportAs(exportType, { name, width, height, outputSize, data, translations, asciiOffset }) {
+  const parsedTranslations = parseTranslations(translations, outputSize, asciiOffset),
+    parsedAsciiOffset = parseTextToBinary(asciiOffset, outputSize),
     rawData = [];
   data.forEach((row, rowId) => {
     row.forEach((col, colId) => {
-      rawData.push(parsedTranslations[col] ?? col);
+      let val = parsedTranslations[col] ?? col.charCodeAt(0) + parsedAsciiOffset;
+      if (outputSize === 8 && val > 255) {
+        val = 255;
+      }
+      rawData.push(val);
     });
   });
 
@@ -173,15 +212,20 @@ export function exportAs(exportType, { name, width, height, outputSize, data, tr
           return new Uint8Array(rawData);
       }
     case "js":
-      const rawDataSplit = chunkArray(rawData, 16)
-        .map((a) => a.join(" ,"))
-        .join(",\n    ");
+      // FIXME: Use this
+      // FIXME: add unmodified list of data with the same formatting
+      const rawDataSplit = chunkArray(rawData, 16);
       return `module.exports = { 
     name: "${name}",
     width: ${width}, 
     height: ${height}, 
     outputSize: ${outputSize}, 
-    data: ${outputSize === 64 ? `new BigUint64Array([${rawData.map((m) => `BigInt('${m}')`).join(", ")}])` : `[${rawData.join(", ")}]`}
+    asciiOffset: ${parsedAsciiOffset},
+    data: ${
+      outputSize === 64
+        ? `new BigUint64Array([${rawDataSplit.map((a) => a.map((m) => `BigInt('${m}')`).join(", ")).join(",\n    ")}])`
+        : `[${rawDataSplit.map((a) => a.join(", ")).join(",\n    ")}]`
+    }
 }`;
     case "json":
       if (outputSize === 64) {
@@ -194,6 +238,7 @@ export function exportAs(exportType, { name, width, height, outputSize, data, tr
     "width": ${width}, 
     "height": ${height}, 
     "outputSize": ${outputSize}, 
+    "asciiOffset": ${parsedAsciiOffset},
     "data": [${chunkArray(rawData, 16)
       .map((a) => a.join(", "))
       .join(",\n    ")}]
@@ -203,6 +248,7 @@ export function exportAs(exportType, { name, width, height, outputSize, data, tr
       return `#define ART_WIDTH ${width}
 #define ART_HEIGHT ${height}
 #define OUTPUT_SIZE ${outputSize}
+#define ASCII_OFFSET ${parsedAsciiOffset}
 const unsigned char artData[] = {
     ${chunkArray(rawData, 16)
       .map((n) => n.join(", "))
@@ -210,6 +256,8 @@ const unsigned char artData[] = {
 };`;
     case "csv":
       return rawData.join(",");
+    case "ascii":
+      return data.map((r) => r.join("")).join("\n");
     default:
       throw new Error("Unknown export type! Available types: " + knownExportTypes.join(", "));
   }

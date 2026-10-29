@@ -122,3 +122,57 @@ fieldset {
     text-align: center;
   }
 }
+
+.button-bar {
+  text-align: right;
+  margin: 16px 0;
+  input[type="file"] {
+    display: none;
+  }
+  button,
+  label[role="button"],
+  details {
+    display: inline-block;
+    width: auto;
+    margin: 0 8px;
+  }
+}
+
+.translations {
+  label {
+    width: auto; /* not sure why this is like this... */
+  }
+  .translation-table {
+    fieldset {
+      width: 50%;
+      display: inline-block;
+    }
+    label {
+      display: inline-block;
+      text-align: center;
+      width: 25%;
+    }
+    input {
+      display: inline-block;
+      width: 75%;
+    }
+  }
+}
+
+.extra-char-table {
+  padding: 8px 16px;
+  .char {
+    font-family: "Courier New", Courier, monospace;
+
+    display: inline-block;
+    cursor: pointer;
+    padding: 4px;
+    margin: 2px;
+    width: 24px;
+    line-height: 16px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    text-align: center;
+  }
+}

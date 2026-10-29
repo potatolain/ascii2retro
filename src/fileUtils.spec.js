@@ -1,6 +1,6 @@
-import { saveToText, loadFromText, exportAs } from "./fileUtils";
+import { saveToText, loadFromText, exportAs, parseTextToBinary } from "./fileUtils";
 import { describe, it, expect } from "@jest/globals";
-import { parseCommonJSFromString, structuredClone } from "./test-utils";
+import { parseCommonJSFromString, structuredClone } from "./testUtils";
 
 const face = `xxxxxxxx
 xxxxxxxx
@@ -20,6 +20,7 @@ const faceObj = {
   width: 8,
   height: 9,
   outputSize: 8,
+  asciiOffset: "0",
   data: face,
   translations: { " ": "0", x: "1", o: "0x2" },
 };
@@ -28,6 +29,7 @@ const faceData = `Name: Smiley Face
 Width: 8
 Height: 9
 Output Size: 8
+ASCII Offset: 0
 
 xxxxxxxx
 xxxxxxxx
@@ -47,6 +49,7 @@ const faceDataNoTranslationTable = `Name: Smiley Face
 Width: 8
 Height: 9
 Output Size: 8
+ASCII Offset: 0
 
 xxxxxxxx
 xxxxxxxx
@@ -109,6 +112,7 @@ describe("loadFromText", () => {
       expect(obj.width).toEqual(8);
       expect(obj.height).toEqual(9);
       expect(obj.outputSize).toEqual(8);
+      expect(obj.asciiOffset).toEqual("0");
     });
     it("Loads translation table correctly", () => {
       const obj = loadFromText(faceData);
@@ -124,11 +128,17 @@ describe("loadFromText", () => {
       expect(() => loadFromText(faceData.replace("Output Size: 8", "Output Size: orangutan"))).toThrow(
         /Failed parsing.*Output Size/i,
       );
+      expect(() => loadFromText(faceData.replace("ASCII Offset: 0", "ASCII Offset: orangutan"))).toThrow(
+        /Failed parsing.*ASCII Offset/i,
+      );
     });
     it("Fails on missing required keys", () => {
       expect(() => loadFromText(faceData.replace("Width: 8", "Unused: 8"))).toThrow(/Width.*not provided/i);
       expect(() => loadFromText(faceData.replace("Height: 9", "Unused: 9"))).toThrow(/Height.*not provided/i);
       expect(() => loadFromText(faceData.replace("Output Size: 8", "Unused: 8"))).toThrow(/Output Size not provided/i);
+      expect(() => loadFromText(faceData.replace("ASCII Offset: 0", "Unused: 8"))).toThrow(
+        /ASCII Offset not provided/i,
+      );
     });
     it("Fails with a useful message on invalid keys", () => {
       expect(() => loadFromText(faceData.replace("Width: 8", "Width 8"))).toThrow(/Parameters section is corrupted!/i);
@@ -161,6 +171,7 @@ describe("exportAs", () => {
       height: 9,
       name: "Smiley Face",
       outputSize: 8,
+      asciiOffset: 0,
       data: translatedSmilieRawBin,
     });
 
@@ -173,6 +184,7 @@ describe("exportAs", () => {
       height: 9,
       name: "Smiley Face",
       outputSize: 64,
+      asciiOffset: 0,
       data: new BigUint64Array(translatedSmilieRawBin.map((a) => BigInt(a))),
     };
     // and jest limitations
@@ -186,6 +198,7 @@ describe("exportAs", () => {
       height: 9,
       name: "Smiley Face",
       outputSize: 8,
+      asciiOffset: 0,
       data: translatedSmilieRawBin,
     });
     const obj = structuredClone(faceObj);
@@ -198,6 +211,7 @@ describe("exportAs", () => {
     const expectedC = `#define ART_WIDTH 8
 #define ART_HEIGHT 9
 #define OUTPUT_SIZE 8
+#define ASCII_OFFSET 0
 const unsigned char artData[] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
@@ -211,4 +225,31 @@ const unsigned char artData[] = {
   it("csv export", () => {
     expect(exportAs("csv", faceObj)).toEqual(translatedSmilieRawBin.join(","));
   });
+  it("ascii export", () => {
+    expect(exportAs("ascii", faceObj)).toEqual(`xxxxxxxx
+xxxxxxxx
+xoxxxxox
+xxxxxxxx
+xoxxxxox
+xoooooox
+xxxxxxxx
+xxxxxxxx
+xxxxxxxx`);
+  });
+});
+
+describe("parseTextToBinary", () => {
+  it("Parses an empty string as 0", () => expect(parseTextToBinary("", 8)).toEqual(0));
+  it("Parses 0 as 0", () => expect(parseTextToBinary("0", 8)).toEqual(0));
+  it("Parses 10 as 10", () => expect(parseTextToBinary("10", 8)).toEqual(10));
+  it("parses -10 as -10", () => expect(parseTextToBinary("-10")).toEqual(-10));
+  it("Parses hex $10 as 16", () => expect(parseTextToBinary("$10", 8)).toEqual(16));
+  it("Parses hex -$10 as -16", () => expect(parseTextToBinary("-$10", 8)).toEqual(-16));
+  it("Parses hex 0x10 as 16", () => expect(parseTextToBinary("0x10", 8)).toEqual(16));
+  it("Parses hex -0x10 as -16", () => expect(parseTextToBinary("-0x10", 8)).toEqual(-16));
+  it("Parses bin 0b1100 as 12", () => expect(parseTextToBinary("0b1100", 8)).toEqual(12));
+  it("Parses bin -0b1100 as 12", () => expect(parseTextToBinary("-0b1100", 8)).toEqual(-12));
+  it("Parses bin %1100 as 12", () => expect(parseTextToBinary("%1100", 8)).toEqual(12));
+  it("Parses bin -%1100 as 12", () => expect(parseTextToBinary("-%1100", 8)).toEqual(-12));
+  it("Parses BigInt 10 as BigInt", () => expect(parseTextToBinary("10", 64)).toEqual(BigInt(10)));
 });

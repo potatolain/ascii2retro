@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
-import Character from "./Character.js";
 import ToolSelector from "./ToolSelector.js";
+import ExtraCharacterTable from "./ExtaCharacterTable.js";
 import useLocalStorageState from "./useLocalStorageState.js";
+import { saveToText, loadFromText, exportAs, parseTextToBinary, knownExportTypes, exportNames } from "./fileUtils.js";
 import {
   DEFAULT_HEIGHT,
   DEFAULT_WIDTH,
@@ -10,6 +11,7 @@ import {
   TOOL_TYPES,
   BOX_STYLES,
 } from "./constants.js";
+import { downloadFile } from "./webUtils.js";
 
 function buildDefaultData() {
   const data = [];
@@ -60,27 +62,17 @@ function drawBox(data, boxStyle, x1, y1, x2, y2) {
   });
 }
 
-/* 
-FIXME: Required features for use
-* store/load localstorage
-* resizing works
-* exporting
-* the replacement table below
-* implement all tools
-* copy/paste?
-* undo/redo?
-* Fill tool?
-*/
-
 // Rebuild the array backing ascii, warning if data will be lost
 // FIXME: MUST build this warning piece somehow before launch
 function rebuildArray(arr, width, height) {}
 
 export default function Main() {
-  const [name, setName] = useLocalStorageState("");
-  const [width, setWidth] = useLocalStorageState("height", DEFAULT_WIDTH);
+  const [name, setName] = useLocalStorageState("name");
+  const [width, setWidth] = useLocalStorageState("width", DEFAULT_WIDTH);
   const [height, setHeight] = useLocalStorageState("height", DEFAULT_HEIGHT);
   const [data, setData] = useLocalStorageState("drawingdata", buildDefaultData());
+  const [outputSize, setOutputSize] = useLocalStorageState("outputSize", 8);
+  const [asciiOffset, setAsciiOffset] = useLocalStorageState("asciiOffset", "0");
   const [activeTool, setActiveTool] = useLocalStorageState("activeTool", TOOL_TYPES[0]);
   const [activeTileX, setActiveTileX] = useState(null);
   const [activeTileY, setActiveTileY] = useState(null);
@@ -88,7 +80,11 @@ export default function Main() {
   const [activeDrawCharacter, setActiveDrawCharacter] = useState("x");
   const [mouseIsDown, setMouseIsDown] = useState(false);
   const [boxStyle, setBoxStyle] = useState("Default");
+  const [asciiOffsetValid, setAsciiOffsetValid] = useState(true);
+  const [translations, setTranslations] = useLocalStorageState("translations", {});
+  const [translationsDebounce, setTranslationsDebounce] = useState(true);
 
+  const asciiOffsetParsed = parseTextToBinary(asciiOffset, outputSize) || 0;
   useEffect(() => {
     window.addEventListener("mouseup", onReleaseEditor);
     window.addEventListener("keydown", onKeyDown);
@@ -98,10 +94,26 @@ export default function Main() {
     };
   });
 
+  function clearData() {
+    // FIXME: are you sure? dialog first
+    setWidth(DEFAULT_WIDTH);
+    setHeight(DEFAULT_HEIGHT);
+    setName("");
+    setData(buildDefaultData());
+    setActiveTool(TOOL_TYPES[0]);
+    setOutputSize(8);
+    setAsciiOffset("0");
+    setTranslations({});
+  }
+
   function writeCharacter(x, y, character) {
+    if (data[y][x] === character) {
+      return;
+    }
     const data2 = structuredClone(data);
     data2[y][x] = character;
     setData(data2);
+    rebuildTranslations();
   }
 
   function doEditorAction(event) {
@@ -122,17 +134,19 @@ export default function Main() {
       return;
     }
 
-    switch (activeTool) {
-      case "draw":
-        if (event.button === 0) {
-          writeCharacter(charX, charY, activeDrawCharacter);
-        }
-        break;
-      case "text":
-      case "box":
-        setActiveTileX(charX);
-        setActiveTileY(charY);
-        break;
+    if (event.button === 0) {
+      switch (activeTool) {
+        case "draw":
+          if (event.button === 0) {
+            writeCharacter(charX, charY, activeDrawCharacter);
+          }
+          break;
+        case "text":
+        case "box":
+          setActiveTileX(charX);
+          setActiveTileY(charY);
+          break;
+      }
     }
   }
 
@@ -168,6 +182,12 @@ export default function Main() {
   }
 
   function onKeyDown(event) {
+    // Ignore the event if the user is typing in a text input or textarea
+    const targetTag = event.target.tagName;
+    if (targetTag === "INPUT" || targetTag === "TEXTAREA" || event.target.isContentEditable) {
+      return;
+    }
+
     switch (activeTool) {
       case "draw":
         if (event.key.length === 1) {
@@ -226,11 +246,86 @@ export default function Main() {
     }
   }
 
-  function onClickSave() {}
+  function onClickSave() {
+    const txtData = saveToText({ name, width, height, data, outputSize, asciiOffset });
+    downloadFile(`${name}.txt`, "text/plain", txtData);
+  }
 
-  function onClickLoad() {}
+  async function onClickLoad(event) {
+    const file = event.target.files[0];
+    if (!file) return; // No file, nothing to do!
 
-  function onClickExport() {}
+    try {
+      // Read the file directly as text
+      const textData = await file.text();
+
+      const newData = loadFromText(textData);
+      console.info("newData", newData);
+      setName(newData.name);
+      setWidth(newData.width);
+      setHeight(newData.height);
+      setData(newData.data);
+      setOutputSize(newData.outputSize);
+      setAsciiOffset(newData.asciiOffset);
+      setTranslations(newData.translations);
+      rebuildTranslations();
+    } catch (error) {
+      // FIXME: user-friendly display. Dialog?
+      console.error("Error reading file:", error);
+    }
+  }
+
+  function setTranslation(key, value) {
+    const newTranslations = structuredClone(translations);
+    newTranslations[key] = value;
+    setTranslations(newTranslations);
+  }
+
+  function rebuildTranslations() {
+    clearTimeout(translationsDebounce);
+    setTranslationsDebounce(setTimeout(rebuildTranslationsInternal, 250));
+  }
+
+  function rebuildTranslationsInternal() {
+    const usedChars = {},
+      newTranslations = structuredClone(translations);
+    data.forEach((row) => {
+      row.forEach((chr) => {
+        usedChars[chr] = 1;
+      });
+    });
+    let hasUpdated = false;
+    Object.keys(usedChars).forEach((char) => {
+      if (!(char in newTranslations)) {
+        hasUpdated = true;
+        newTranslations[char] = null;
+      }
+    });
+    if (hasUpdated) {
+      setTranslations(newTranslations);
+    }
+  }
+
+  // FIXME: Implement, probably turn into a dropdown with options listed in exportAs function in fileUtils.js
+  function onClickExport(expType) {
+    const exportRes = exportAs(expType, { name, width, height, outputSize, data, translations, asciiOffset });
+    let contentType = "text/plain",
+      extension = expType;
+    switch (expType) {
+      case "raw":
+        contentType = "application/octet-stream";
+        break;
+      case "ascii":
+        extension = "txt";
+        break;
+    }
+    downloadFile(`${name}.${extension}`, contentType, exportRes);
+  }
+
+  function validateAsciiOffset(event) {
+    setAsciiOffsetValid(!isNaN(parseTextToBinary(event.target.value, outputSize)));
+    setAsciiOffset(event.target.value);
+  }
 
   return (
     <>
@@ -266,14 +361,29 @@ export default function Main() {
           />
         </fieldset>
         <div className="button-bar">
-          <button className="secondary" onClick={onClickLoad}>
+          <input id="import-file" type="file" className="secondary" onChange={onClickLoad} />
+          <label htmlFor="import-file" role="button" className="secondary">
             Load
-          </button>
+          </label>
           <button className="secondary" onClick={onClickSave}>
             Save
           </button>
-          <button className="secondary" onClick={onClickExport}>
-            Export
+          <details className="dropdown">
+            <summary className="secondary" role="button">
+              Export
+            </summary>
+            <ul>
+              <li disabled>Format</li>
+              {exportNames.map((exp, expId) => (
+                <li key={exp} onClick={() => onClickExport(knownExportTypes[expId])}>
+                  {exp}
+                </li>
+              ))}
+            </ul>
+          </details>
+
+          <button className="outline secondary" onClick={clearData}>
+            Clear Data
           </button>
         </div>
       </div>
@@ -288,6 +398,7 @@ export default function Main() {
             boxStyle={boxStyle}
             setBoxStyle={setBoxStyle}
           />
+          <ExtraCharacterTable setActiveDrawCharacter={setActiveDrawCharacter} visible={activeTool === "draw"} />
         </article>
         <article className="editor">
           <div
@@ -313,12 +424,92 @@ export default function Main() {
                       ((rowId === minY || rowId === maxY) && chrId >= minX && chrId <= maxX) ||
                       ((chrId === minX || chrId === maxX) && rowId >= minY && rowId <= maxY);
                   }
-                  return <Character key={chrId} value={chr} isActive={isActive} />;
+                  return (
+                    <div key={chrId} className={`character ${isActive ? "active" : ""}`}>
+                      {chr}
+                    </div>
+                  );
                 })}
               </div>
             ))}
           </div>
-          <button className="square">XD</button>
+        </article>
+      </div>
+      <div className="container">
+        <article className="translations">
+          <h3>Translations</h3>
+          <fieldset>
+            <legend>Binary File Output Size</legend>
+            <input
+              type="radio"
+              id="output-size-8"
+              name="output-size"
+              onChange={() => setOutputSize(8)}
+              value={8}
+              checked={outputSize === 8}
+            />
+            <label htmlFor="output-size-8">8 Bit (byte)</label>
+            <input
+              type="radio"
+              id="output-size-16"
+              name="output-size"
+              onChange={() => setOutputSize(16)}
+              value={16}
+              checked={outputSize === 16}
+            />
+            <label htmlFor="output-size-16">16 Bit</label>
+            <input
+              type="radio"
+              id="output-size-32"
+              name="output-size"
+              onChange={() => setOutputSize(32)}
+              value={32}
+              checked={outputSize === 32}
+            />
+            <label htmlFor="output-size-32">32 Bit</label>
+            <input
+              type="radio"
+              id="output-size-64"
+              name="output-size"
+              onChange={() => setOutputSize(64)}
+              value={64}
+              checked={outputSize === 64}
+            />
+            <label htmlFor="output-size-64">64 Bit</label>
+          </fieldset>
+          <fieldset>
+            <label data-tooltip="A set number of bytes to add/remove from the ascii table. Use a prefix of 0x to signify hexidecimal. A negative will subtract instead of add.">
+              ASCII table offset{" "}
+              <input
+                type="text"
+                value={asciiOffset}
+                onChange={validateAsciiOffset}
+                aria-invalid={!asciiOffsetValid ? "true" : "false"}
+              />
+            </label>
+          </fieldset>
+          {/* FIXME: show/hide ascii toggle. Once we, y'know, have translations */}
+          {/* TODO: Allow removing unused translations? */}
+          <div className="translation-table">
+            {Object.keys(translations)
+              .sort()
+              .map((character) => {
+                return (
+                  <fieldset key={character}>
+                    <label htmlFor={`translation-char-${character}`}>
+                      {character === " " ? <em style={{ color: "gray" }}>Space</em> : character}
+                    </label>
+                    {/* FIXME: Validate input! And probably mark any non-8-bit values as invalid if 8 bit mode */}
+                    <input
+                      id={`translation-char-${character}`}
+                      value={translations[character] ?? ""}
+                      placeholder={`Default (${character.charCodeAt(0) + asciiOffsetParsed})`}
+                      onChange={(event) => setTranslation(character, event.target.value)}
+                    />
+                  </fieldset>
+                );
+              })}
+          </div>
         </article>
       </div>
     </>

@@ -21,18 +21,20 @@ export default function ToolSelector({ activeTool, setActiveTool, activeDrawChar
         <div className="settings">
           <fieldset role="group">
             <label htmlFor="boxStyle">Box Style</label>
-            <select id="boxStyle" aria-label="Choose a box style" onChange={(e) => setBoxStyle(e.target.value)}>
+            <select
+              id="boxStyle"
+              aria-label="Choose a box style"
+              onChange={(e) => setBoxStyle(e.target.value)}
+              value={boxStyle}
+            >
               {BOX_STYLES.map((o) => (
-                <option key={o.name} value={o.name} selected={o.name === boxStyle}>
+                <option key={o.name} value={o.name}>
                   {o.name}
                 </option>
               ))}
             </select>
           </fieldset>
         </div>
-      </div>
-      <div className={`tool ${activeTool === "line" ? "active" : ""}`} onClick={() => setActiveTool("line")}>
-        <div className="name">Line</div>
       </div>
       <div className={`tool ${activeTool === "text" ? "active" : ""}`} onClick={() => setActiveTool("text")}>
         <div className="name">Type</div>
