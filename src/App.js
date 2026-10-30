@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import ToolSelector from "./ToolSelector.js";
 import ExtraCharacterTable from "./ExtaCharacterTable.js";
+import InfoDialog from "./InfoDialog.js";
 import useLocalStorageState from "./useLocalStorageState.js";
 import { saveToText, loadFromText, exportAs, parseTextToBinary, knownExportTypes, exportNames } from "./fileUtils.js";
 import {
@@ -83,6 +84,7 @@ export default function Main() {
   const [asciiOffsetValid, setAsciiOffsetValid] = useState(true);
   const [translations, setTranslations] = useLocalStorageState("translations", {});
   const [translationsDebounce, setTranslationsDebounce] = useState(true);
+  const [currentDialog, setCurrentDialog] = useState({});
 
   const asciiOffsetParsed = parseTextToBinary(asciiOffset, outputSize) || 0;
   useEffect(() => {
@@ -94,16 +96,32 @@ export default function Main() {
     };
   });
 
+  function showDialog(title, content, onOk = () => {}, onCancel = () => {}) {
+    setCurrentDialog({ title, content, onOk, onCancel, onClose: hideDialog });
+  }
+
+  function hideDialog() {
+    setCurrentDialog({});
+  }
+
   function clearData() {
-    // FIXME: are you sure? dialog first
-    setWidth(DEFAULT_WIDTH);
-    setHeight(DEFAULT_HEIGHT);
-    setName("");
-    setData(buildDefaultData());
-    setActiveTool(TOOL_TYPES[0]);
-    setOutputSize(8);
-    setAsciiOffset("0");
-    setTranslations({});
+    const content = (
+        <p>
+          Are you sure you want to clear your data? You can't undo this! Make sure to save your data first if you
+          haven't.
+        </p>
+      ),
+      onOk = () => {
+        setWidth(DEFAULT_WIDTH);
+        setHeight(DEFAULT_HEIGHT);
+        setName("");
+        setData(buildDefaultData());
+        setActiveTool(TOOL_TYPES[0]);
+        setOutputSize(8);
+        setAsciiOffset("0");
+        setTranslations({});
+      };
+    showDialog("Are you sure?", content, onOk);
   }
 
   function writeCharacter(x, y, character) {
@@ -247,7 +265,7 @@ export default function Main() {
   }
 
   function onClickSave() {
-    const txtData = saveToText({ name, width, height, data, outputSize, asciiOffset });
+    const txtData = saveToText({ name, width, height, data, outputSize, asciiOffset, translations });
     downloadFile(`${name}.txt`, "text/plain", txtData);
   }
 
@@ -260,7 +278,6 @@ export default function Main() {
       const textData = await file.text();
 
       const newData = loadFromText(textData);
-      console.info("newData", newData);
       setName(newData.name);
       setWidth(newData.width);
       setHeight(newData.height);
@@ -268,10 +285,14 @@ export default function Main() {
       setOutputSize(newData.outputSize);
       setAsciiOffset(newData.asciiOffset);
       setTranslations(newData.translations);
-      rebuildTranslations();
     } catch (error) {
-      // FIXME: user-friendly display. Dialog?
-      console.error("Error reading file:", error);
+      showDialog(
+        "Error Reading File",
+        <>
+          <p>Encountered an error reading the file:</p>
+          <p>{error.toString()}</p>
+        </>,
+      );
     }
   }
 
@@ -306,7 +327,6 @@ export default function Main() {
     }
   }
 
-  // FIXME: Implement, probably turn into a dropdown with options listed in exportAs function in fileUtils.js
   function onClickExport(expType) {
     const exportRes = exportAs(expType, { name, width, height, outputSize, data, translations, asciiOffset });
     let contentType = "text/plain",
@@ -329,6 +349,7 @@ export default function Main() {
 
   return (
     <>
+      <InfoDialog {...currentDialog} />
       <div className="container">
         <h1>ascii2retro</h1>
         <div className="project-description">
@@ -361,7 +382,7 @@ export default function Main() {
           />
         </fieldset>
         <div className="button-bar">
-          <input id="import-file" type="file" className="secondary" onChange={onClickLoad} />
+          <input id="import-file" type="file" className="secondary" accept=".txt" onChange={onClickLoad} />
           <label htmlFor="import-file" role="button" className="secondary">
             Load
           </label>
@@ -373,7 +394,6 @@ export default function Main() {
               Export
             </summary>
             <ul>
-              <li disabled>Format</li>
               {exportNames.map((exp, expId) => (
                 <li key={exp} onClick={() => onClickExport(knownExportTypes[expId])}>
                   {exp}
@@ -488,7 +508,6 @@ export default function Main() {
               />
             </label>
           </fieldset>
-          {/* FIXME: show/hide ascii toggle. Once we, y'know, have translations */}
           {/* TODO: Allow removing unused translations? */}
           <div className="translation-table">
             {Object.keys(translations)

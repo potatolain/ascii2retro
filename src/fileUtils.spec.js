@@ -10,7 +10,7 @@ xoxxxxox
 xoooooox
 xxxxxxxx
 xxxxxxxx
-xxxxxxxx`
+xxxxxxxb`
   // Finagle into the format the app uses, array of arrays
   .split("\n")
   .map((r) => r.split(""));
@@ -22,7 +22,7 @@ const faceObj = {
   outputSize: 8,
   asciiOffset: "0",
   data: face,
-  translations: { " ": "0", x: "1", o: "0x2" },
+  translations: { " ": "0", x: "1", o: "0x2", b: null },
 };
 
 const faceData = `Name: Smiley Face
@@ -39,11 +39,12 @@ xoxxxxox
 xoooooox
 xxxxxxxx
 xxxxxxxx
-xxxxxxxx
+xxxxxxxb
 
  : 0
 x: 1
-o: 0x2`;
+o: 0x2
+b: null`;
 
 const faceDataNoTranslationTable = `Name: Smiley Face
 Width: 8
@@ -59,13 +60,13 @@ xoxxxxox
 xoooooox
 xxxxxxxx
 xxxxxxxx
-xxxxxxxx
+xxxxxxxb
 
 `;
 
 const translatedSmilieRawBin = [
   1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 1, 1, 1, 1, 2,
-  1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+  1, 1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 98,
 ];
 describe("saveToText", () => {
   it("does a basic export correctly", () => {
@@ -116,7 +117,7 @@ describe("loadFromText", () => {
     });
     it("Loads translation table correctly", () => {
       const obj = loadFromText(faceData);
-      expect(obj.translations).toEqual({ " ": "0", x: "1", o: "0x2" });
+      expect(obj.translations).toEqual({ " ": "0", x: "1", o: "0x2", b: null });
     });
     it("Handles a lack of translation table correctly", () => {
       const obj = loadFromText(faceDataNoTranslationTable);
@@ -217,7 +218,7 @@ const unsigned char artData[] = {
     1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 2, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 2, 2, 1,
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-    1, 1, 1, 1, 1, 1, 1, 1;
+    1, 1, 1, 1, 1, 1, 1, 98;
 };`;
     expect(exportAs("c", faceObj)).toEqual(expectedC);
   });
@@ -234,7 +235,7 @@ xoxxxxox
 xoooooox
 xxxxxxxx
 xxxxxxxx
-xxxxxxxx`);
+xxxxxxxb`);
   });
 });
 

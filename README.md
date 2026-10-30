@@ -22,7 +22,6 @@ Enjoy!
 ## TODO List Prior to public availability
 
 - Make resizing the image actually work, after warning about losing data
-- Wire up export buttons
 - implement select tool with drag, delete
 - Add some sorta info tip somewhere about making your own for import using the base syntax
 - Support copy/paste?

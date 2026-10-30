@@ -176,3 +176,7 @@ fieldset {
     text-align: center;
   }
 }
+
+details.dropdown ul li {
+  cursor: pointer;
+}

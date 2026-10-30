@@ -124,13 +124,15 @@ export function loadFromText(txt) {
     }
     let key = lines[currLine][0],
       value = lines[currLine].substring(3);
+    if (value === "null") {
+      value = null;
+    }
     translations[key] = value;
   }
 
   return { name, width, height, outputSize, data, translations, asciiOffset };
 }
 
-// FIXME: Handle -$20, tests
 export function parseTextToBinary(origValue, outputSize) {
   let value = origValue,
     isNegative = false,
@@ -189,7 +191,12 @@ export function exportAs(exportType, { name, width, height, outputSize, data, tr
     rawData = [];
   data.forEach((row, rowId) => {
     row.forEach((col, colId) => {
-      let val = parsedTranslations[col] ?? col.charCodeAt(0) + parsedAsciiOffset;
+      let val;
+      if (outputSize === 64) {
+        val = parsedTranslations[col] ?? BigInt(col.charCodeAt(0)) + parsedAsciiOffset;
+      } else {
+        val = parsedTranslations[col] ?? col.charCodeAt(0) + parsedAsciiOffset;
+      }
       if (outputSize === 8 && val > 255) {
         val = 255;
       }
@@ -212,7 +219,6 @@ export function exportAs(exportType, { name, width, height, outputSize, data, tr
           return new Uint8Array(rawData);
       }
     case "js":
-      // FIXME: Use this
       // FIXME: add unmodified list of data with the same formatting
       const rawDataSplit = chunkArray(rawData, 16);
       return `module.exports = { 
