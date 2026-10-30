@@ -63,7 +63,6 @@ export function loadFromText(txt) {
     }
     switch (key.toLowerCase()) {
       case "name":
-        // FIXME: Edge case, name has a colon. Handle or restrict. Quotes too... maybe we need to restrict.
         name = value;
         break;
       case "width":
@@ -188,7 +187,8 @@ export const exportNames = ["Binary/Raw", "Javascript module", "JSON", "C Code",
 export function exportAs(exportType, { name, width, height, outputSize, data, translations, asciiOffset }) {
   const parsedTranslations = parseTranslations(translations, outputSize, asciiOffset),
     parsedAsciiOffset = parseTextToBinary(asciiOffset, outputSize),
-    rawData = [];
+    rawData = [],
+    untouchedData = [];
   data.forEach((row, rowId) => {
     row.forEach((col, colId) => {
       let val;
@@ -201,8 +201,10 @@ export function exportAs(exportType, { name, width, height, outputSize, data, tr
         val = 255;
       }
       rawData.push(val);
+      untouchedData.push(col.charCodeAt(0));
     });
   });
+  const rawDataSplit = chunkArray(rawData, 16);
 
   switch (exportType) {
     case "bin":
@@ -219,8 +221,6 @@ export function exportAs(exportType, { name, width, height, outputSize, data, tr
           return new Uint8Array(rawData);
       }
     case "js":
-      // FIXME: add unmodified list of data with the same formatting
-      const rawDataSplit = chunkArray(rawData, 16);
       return `module.exports = { 
     name: "${name}",
     width: ${width}, 
@@ -230,7 +230,7 @@ export function exportAs(exportType, { name, width, height, outputSize, data, tr
     data: ${
       outputSize === 64
         ? `new BigUint64Array([${rawDataSplit.map((a) => a.map((m) => `BigInt('${m}')`).join(", ")).join(",\n    ")}])`
-        : `[${rawDataSplit.map((a) => a.join(", ")).join(",\n    ")}]`
+        : `[${rawDataSplit.map((a) => a.join(", ")).join(",\n    ")}],`
     }
 }`;
     case "json":
@@ -245,9 +245,7 @@ export function exportAs(exportType, { name, width, height, outputSize, data, tr
     "height": ${height}, 
     "outputSize": ${outputSize}, 
     "asciiOffset": ${parsedAsciiOffset},
-    "data": [${chunkArray(rawData, 16)
-      .map((a) => a.join(", "))
-      .join(",\n    ")}]
+    "data": [${rawDataSplit.map((a) => a.join(", ")).join(",\n    ")}]
 }
 `;
     case "c":

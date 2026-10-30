@@ -65,10 +65,13 @@ function drawBox(data, boxStyle, x1, y1, x2, y2) {
 
 // Rebuild the array backing ascii, warning if data will be lost
 // FIXME: MUST build this warning piece somehow before launch
+// FIXME2: Need to put some critical thought into this - how do I do this without annoying the user repeatedly as they change it?
+// debouncing for sure... maybe also don't yell at all if image is empty?
 function rebuildArray(arr, width, height) {}
 
 export default function Main() {
-  const [name, setName] = useLocalStorageState("name");
+  const [name, setNameRaw] = useLocalStorageState("name");
+  const [nameValid, setNameValid] = useState(true);
   const [width, setWidth] = useLocalStorageState("width", DEFAULT_WIDTH);
   const [height, setHeight] = useLocalStorageState("height", DEFAULT_HEIGHT);
   const [data, setData] = useLocalStorageState("drawingdata", buildDefaultData());
@@ -95,6 +98,11 @@ export default function Main() {
       window.removeEventListener("keydown", onKeyDown);
     };
   });
+
+  function setName(name) {
+    setNameRaw(name);
+    setNameValid(/^([\w ])+$/.test(name));
+  }
 
   function showDialog(title, content, onOk = () => {}, onCancel = () => {}) {
     setCurrentDialog({ title, content, onOk, onCancel, onClose: hideDialog });
@@ -265,6 +273,13 @@ export default function Main() {
   }
 
   function onClickSave() {
+    if (!nameValid) {
+      showDialog(
+        "Invalid name",
+        <p>Names can only contain letters, numbers and spaces. Please remove other characters.</p>,
+      );
+      return;
+    }
     const txtData = saveToText({ name, width, height, data, outputSize, asciiOffset, translations });
     downloadFile(`${name}.txt`, "text/plain", txtData);
   }
@@ -328,6 +343,36 @@ export default function Main() {
   }
 
   function onClickExport(expType) {
+    if (!nameValid) {
+      showDialog(
+        "Invalid name",
+        <p>Names can only contain letters, numbers and spaces. Please remove other characters.</p>,
+      );
+    }
+    // Validate all translations
+    let invalidTranslationFound = false;
+    Object.keys(translations).forEach((transKey) => {
+      if (
+        !invalidTranslationFound &&
+        translations[transKey] !== null &&
+        parseTextToBinary(translations[transKey], outputSize) === null
+      ) {
+        invalidTranslationFound = true;
+        showDialog(
+          "Invalid translation found",
+          <>
+            <p>
+              The translation for character "{transKey}" is invalid. It must be something that can be parsed as a
+              number, including hex starting with $ or 0x, and binary starting with 0b or %.
+            </p>
+            <p> Provided: "{translations[transKey]}"</p>
+          </>,
+        );
+      }
+    });
+    if (invalidTranslationFound) {
+      return;
+    }
     const exportRes = exportAs(expType, { name, width, height, outputSize, data, translations, asciiOffset });
     let contentType = "text/plain",
       extension = expType;
@@ -359,7 +404,14 @@ export default function Main() {
         </div>
         <fieldset role="group">
           <label htmlFor="pname">Project name </label>
-          <input id="pname" type="text" placeholder="Name" onChange={(e) => setName(e.target.value)} value={name} />
+          <input
+            id="pname"
+            type="text"
+            placeholder="Name"
+            onChange={(e) => setName(e.target.value)}
+            value={name}
+            aria-invalid={!nameValid}
+          />
         </fieldset>
         <fieldset role="group">
           <label htmlFor="pwidth">Width </label>
@@ -518,7 +570,6 @@ export default function Main() {
                     <label htmlFor={`translation-char-${character}`}>
                       {character === " " ? <em style={{ color: "gray" }}>Space</em> : character}
                     </label>
-                    {/* FIXME: Validate input! And probably mark any non-8-bit values as invalid if 8 bit mode */}
                     <input
                       id={`translation-char-${character}`}
                       value={translations[character] ?? ""}

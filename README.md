@@ -19,11 +19,12 @@ Enjoy!
 - Simple - can you use a text editor? You can probably figure this out
 - Web-based - nothing to download
 
-## TODO List Prior to public availability
+## Immediate TODO List
 
 - Make resizing the image actually work, after warning about losing data
 - implement select tool with drag, delete
 - Add some sorta info tip somewhere about making your own for import using the base syntax
+- Make file util a separate file and binary
 - Support copy/paste?
 - Support undo/redo?
 - Add a Fill tool?
