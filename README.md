@@ -30,8 +30,6 @@ Enjoy!
 - Support copy/paste?
 - Support undo/redo?
 - Add a Fill tool?
-- Link to source
-- Tooltips for some of the obscure features
 
 ## File format
 

@@ -499,7 +499,6 @@ export default function Main() {
             {data.map((row, rowId) => (
               <div key={rowId} className="row">
                 {row.map((chr, chrId) => {
-                  // TODO does this class provide value?
                   let isActive = false;
                   if (activeTool === "text") isActive = rowId === activeTileY && chrId === activeTileX;
                   if (activeTool === "box" && boxPosTLXY) {
@@ -527,7 +526,9 @@ export default function Main() {
         <article className="translations">
           <h3>Translations</h3>
           <fieldset>
-            <legend>Binary File Output Size</legend>
+            <legend data-tooltip="This is the size in bytes of each output value in the exports. Mostly used for binary formats.">
+              Binary File Output Size
+            </legend>
             <input
               type="radio"
               id="output-size-8"
