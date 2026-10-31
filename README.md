@@ -23,19 +23,51 @@ Enjoy!
 - Simple - can you use a text editor? You can probably figure this out
 - Web-based - nothing to download
 
-## Immediate TODO List
+## Future wishlist items
 
-- Make resizing the image actually work, after warning about losing data
 - implement select tool with drag, delete
-- Add some sorta info tip somewhere about making your own for import using the base syntax
 - Make file util a separate file and binary
 - Support copy/paste?
 - Support undo/redo?
 - Add a Fill tool?
+- Link to source
+- Tooltips for some of the obscure features
 
 ## File format
 
-To be written! Still iterating on it a tiny bit right now.
+ASCII files are just plain txt files, and meant to be easily user editable! The format aims to be somewhat self-explanatory, here's
+the breakdown:
+
+### Section 1: Parameters
+
+The top of the file is a list of parameters - with the name on the left, followed by a colon (`:`) and a space, then the value. The expected values are:
+
+- Name: The name to use for exports, Alphanumeric characters and spaces only.
+- Width: the width of the image in characters
+- Height: The height of the image in characters
+- Output Size: One of: 8, 16, 32 or 64. This is the size in bytes of each output value in the exports. Mostly used for binary formats.
+- ASCII Offset: A numeric offset to apply to any characters that aren't given an override in the translations section. This can be negative, and can be an integer, a hex number (prefix with `0x` or `$`), or binary (prefix with `0b` or `%`)
+
+Section 1 must be ended with two consecutive newline (`\n`) characters.
+
+### Section 2: ASCII art
+
+This section is very simple, it's just your ascii art, as drawn in the UI. One character on on screen
+is one character in this section. Each line is dilineated by a single newline.
+
+This section is ended by two consecutive newline (`\n`) characters.
+
+### Section 3: Translations
+
+This section allows you to define translations for any characters that should not use the default behavior.
+It consists of a single ascii character as it would appear in the ascii section, a colon, a space, then the
+value to use for that character.
+
+By default, any character in the ascii art section will be replaced with its ascii code value, summed with the
+value in `ASCII Offset`. If a character is not in this section, or it appears in this section with the value
+"null", the default behavior will be used.
+
+The value can be an integer, as well as a hex value (prefixed with `0x` or `$`) or a binary value (prefixed with `0b` or `%`).
 
 ## License
 

@@ -180,3 +180,8 @@ fieldset {
 details.dropdown ul li {
   cursor: pointer;
 }
+
+article.footer {
+  text-align: center;
+  margin: auto;
+}

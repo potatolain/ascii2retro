@@ -48,7 +48,7 @@ ASCII Offset: ${asciiOffset}
 ${strData}
 
 ${Object.keys(translations)
-  .map((k) => `${k}: ${translations[k]}`)
+  .map((k) => `${k}: ${translations[k] === "" ? null : translations[k]}`)
   .join("\n")}`;
 
   return txt;

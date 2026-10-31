@@ -13,6 +13,7 @@ import {
   BOX_STYLES,
 } from "./constants.js";
 import { downloadFile } from "./webUtils.js";
+import ResizeDialog from "./ResizeDialog.js";
 
 function buildDefaultData() {
   const data = [];
@@ -63,11 +64,30 @@ function drawBox(data, boxStyle, x1, y1, x2, y2) {
   });
 }
 
-// Rebuild the array backing ascii, warning if data will be lost
-// FIXME: MUST build this warning piece somehow before launch
-// FIXME2: Need to put some critical thought into this - how do I do this without annoying the user repeatedly as they change it?
-// debouncing for sure... maybe also don't yell at all if image is empty?
-function rebuildArray(arr, width, height) {}
+// Rebuild the array backing ascii
+function rebuildArray(arr, width, height) {
+  const newArray = [];
+  arr.forEach((row, rowId) => {
+    if (rowId < height) {
+      newArray.push([]);
+      row.forEach((col, colId) => {
+        if (colId < width) {
+          newArray[rowId].push(col);
+        }
+      });
+      while (newArray[rowId].length < width) {
+        newArray[rowId].push(" ");
+      }
+    }
+  });
+  while (newArray.length < height) {
+    newArray.push([]);
+    while (newArray[newArray.length - 1].length < width) {
+      newArray[newArray.length - 1].push(" ");
+    }
+  }
+  return newArray;
+}
 
 export default function Main() {
   const [name, setNameRaw] = useLocalStorageState("name");
@@ -87,6 +107,7 @@ export default function Main() {
   const [asciiOffsetValid, setAsciiOffsetValid] = useState(true);
   const [translations, setTranslations] = useLocalStorageState("translations", {});
   const [translationsDebounce, setTranslationsDebounce] = useState(true);
+  const [showResizeDialog, setShowResizeDialog] = useState(false);
   const [currentDialog, setCurrentDialog] = useState({});
 
   const asciiOffsetParsed = parseTextToBinary(asciiOffset, outputSize) || 0;
@@ -392,9 +413,21 @@ export default function Main() {
     setAsciiOffset(event.target.value);
   }
 
+  function doResize(width, height) {
+    setWidth(width);
+    setHeight(height);
+    setData(rebuildArray(data, width, height));
+    setShowResizeDialog(false);
+  }
+
   return (
     <>
       <InfoDialog {...currentDialog} />
+      {showResizeDialog ? (
+        <ResizeDialog width={width} height={height} onOk={doResize} onClose={() => setShowResizeDialog(false)} />
+      ) : (
+        <></>
+      )}
       <div className="container">
         <h1>ascii2retro</h1>
         <div className="project-description">
@@ -413,28 +446,8 @@ export default function Main() {
             aria-invalid={!nameValid}
           />
         </fieldset>
-        <fieldset role="group">
-          <label htmlFor="pwidth">Width </label>
-          <input
-            id="pwidth"
-            type="number"
-            placeholder="Width"
-            onChange={(e) => setWidth(e.target.value)}
-            value={width}
-          />
-        </fieldset>
-        <fieldset role="group">
-          <label htmlFor="pheight">Height </label>
-          <input
-            id="pheight"
-            type="number"
-            placeholder="Height"
-            onChange={(e) => setHeight(e.target.value)}
-            value={height}
-          />
-        </fieldset>
         <div className="button-bar">
-          <input id="import-file" type="file" className="secondary" accept=".txt" onChange={onClickLoad} />
+          <input id="import-file" type="file" className="" accept=".txt" onChange={onClickLoad} />
           <label htmlFor="import-file" role="button" className="secondary">
             Load
           </label>
@@ -454,6 +467,9 @@ export default function Main() {
             </ul>
           </details>
 
+          <button className="secondary" onClick={() => setShowResizeDialog(true)}>
+            Resize
+          </button>
           <button className="outline secondary" onClick={clearData}>
             Clear Data
           </button>
@@ -582,6 +598,10 @@ export default function Main() {
           </div>
         </article>
       </div>
+      <article className="footer container">
+        Created in 2026 by Sarah Parker <br />
+        <a href="https://igwgames.com">Homepage</a> &bull; <a href="https://gh.nes.science/ascii2retro">Source code</a>
+      </article>
     </>
   );
 }
