@@ -1,4 +1,4 @@
-import { saveToText, loadFromText, exportAs, parseTextToBinary } from "./fileUtils";
+import { saveToText, loadFromText, exportAs, parseTextToBinary, exportTextFile } from "./fileUtils";
 import { describe, it, expect } from "@jest/globals";
 import { parseCommonJSFromString, structuredClone } from "./testUtils";
 
@@ -210,10 +210,10 @@ describe("exportAs", () => {
 
   it("c export", () => {
     const expectedC = `#define ART_WIDTH 8
-#define ART_HEIGHT 9
-#define OUTPUT_SIZE 8
-#define ASCII_OFFSET 0
-const unsigned char artData[] = {
+#define SMILEY_FACE_HEIGHT 9
+#define SMILEY_FACE_OUTPUT_SIZE 8
+#define SMILEY_FACE_ASCII_OFFSET 0
+const unsigned char smiley_face[] = {
     1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
     1, 2, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 2, 2, 1,
@@ -253,4 +253,69 @@ describe("parseTextToBinary", () => {
   it("Parses bin %1100 as 12", () => expect(parseTextToBinary("%1100", 8)).toEqual(12));
   it("Parses bin -%1100 as 12", () => expect(parseTextToBinary("-%1100", 8)).toEqual(-12));
   it("Parses BigInt 10 as BigInt", () => expect(parseTextToBinary("10", 64)).toEqual(BigInt(10)));
+});
+
+describe("exportTextFile", () => {
+  it("handles invalid type", () => {
+    expect(() => exportTextFile(faceData, "blagoonga")).toThrow(/Unknown export type/i);
+  });
+  it("Raw binary export", () => {
+    expect(exportTextFile(faceData, "bin")).toEqual(new Uint8Array(translatedSmilieRawBin));
+  });
+
+  it("js export", () => {
+    expect(parseCommonJSFromString(exportTextFile(faceData, "js"))).toEqual({
+      width: 8,
+      height: 9,
+      name: "Smiley Face",
+      outputSize: 8,
+      asciiOffset: 0,
+      data: translatedSmilieRawBin,
+    });
+  });
+
+  it("json export", () => {
+    expect(JSON.parse(exportTextFile(faceData, "json"))).toEqual({
+      width: 8,
+      height: 9,
+      name: "Smiley Face",
+      outputSize: 8,
+      asciiOffset: 0,
+      data: translatedSmilieRawBin,
+    });
+    const obj = structuredClone(faceObj);
+    // 64 bit is a bit special due to js limitations...
+    obj.outputSize = 64;
+    expect(() => exportAs("json", obj)).toThrow(/64 bit json exports are not supported/i);
+  });
+
+  it("c export", () => {
+    const expectedC = `#define ART_WIDTH 8
+#define SMILEY_FACE_HEIGHT 9
+#define SMILEY_FACE_OUTPUT_SIZE 8
+#define SMILEY_FACE_ASCII_OFFSET 0
+const unsigned char smiley_face[] = {
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 2, 1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 2, 1, 1, 1, 1, 2, 1, 1, 2, 2, 2, 2, 2, 2, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 1, 1, 98;
+};`;
+    expect(exportTextFile(faceData, "c")).toEqual(expectedC);
+  });
+
+  it("csv export", () => {
+    expect(exportTextFile(faceData, "csv")).toEqual(translatedSmilieRawBin.join(","));
+  });
+  it("ascii export", () => {
+    expect(exportTextFile(faceData, "ascii")).toEqual(`xxxxxxxx
+xxxxxxxx
+xoxxxxox
+xxxxxxxx
+xoxxxxox
+xoooooox
+xxxxxxxx
+xxxxxxxx
+xxxxxxxb`);
+  });
 });
